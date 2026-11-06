@@ -39,6 +39,8 @@ class RunRequest(BaseModel):
 
     @model_validator(mode="after")
     def require_shortlist(self) -> "RunRequest":
+        if self.mode == "discover" and self.product_ids:
+            raise ValueError("product_ids require shortlist mode.")
         if self.mode == "shortlist" and not self.product_ids:
             raise ValueError("Provide at least one product_id in shortlist mode.")
         return self

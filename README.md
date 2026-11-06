@@ -66,6 +66,7 @@ An empty, whitespace-only, or reasoning-only model response returns HTTP 503 wit
 - Unknown request fields return HTTP 422 before the graph runs, so misspelled options cannot silently use defaults.
 - `limit` requires a JSON integer from 1 to 20; booleans, strings, and floats return HTTP 422 before the graph runs.
 - Product IDs must contain non-whitespace text; malformed IDs return HTTP 422 before the graph runs.
+- Nonempty `product_ids` require `"mode": "shortlist"`; discovery requests reject them with HTTP 422 instead of silently ignoring the selection.
 - Each response includes a run ID, ranked assessments, a summary, and the scoring version.
 - Equal scores are ordered by product ID before applying the result limit, so catalog order does not change tied selections.
 - Deterministic summaries include each leading product's score and verdict, so a high score cannot hide rejection by the gross-margin gate.

@@ -6,6 +6,20 @@ from demand_insight_agent.api import app
 from demand_insight_agent.models import RunRequest
 
 
+@pytest.mark.parametrize("mode", [None, "discover"])
+def test_discovery_cannot_silently_ignore_product_ids(monkeypatch, mode):
+    monkeypatch.setattr("demand_insight_agent.api.run",
+                        lambda request: pytest.fail("invalid requests must not run the graph"))
+    payload = {"product_ids": ["sample-001"], "use_llm_summary": True}
+    if mode is not None:
+        payload["mode"] = mode
+    with pytest.raises(ValidationError, match="product_ids require shortlist mode"):
+        RunRequest.model_validate(payload)
+    response = TestClient(app).post("/runs", json=payload)
+    assert response.status_code == 422
+    assert "product_ids require shortlist mode" in response.json()["detail"][0]["msg"]
+
+
 @pytest.mark.parametrize("error", [FileNotFoundError("private/catalog.json"),
                                  PermissionError("private/catalog.json")])
 def test_unreadable_catalog_returns_service_error_without_model_call(monkeypatch, error):
@@ -61,7 +75,8 @@ def test_nonlist_catalog_is_rejected_before_selection(monkeypatch, mode, catalog
     monkeypatch.setattr("langchain_openai.ChatOpenAI",
                         lambda **kwargs: pytest.fail("invalid catalogs must not request a summary"))
     response = TestClient(app).post("/runs", json={
-        "mode": mode, "product_ids": ["sample-001"], "use_llm_summary": True,
+        "mode": mode, "product_ids": ["sample-001"] if mode == "shortlist" else [],
+        "use_llm_summary": True,
     })
     assert response.status_code == 422
     assert response.json() == {"detail": "Catalog must be a JSON list."}
@@ -96,7 +111,8 @@ def test_malformed_catalog_is_rejected_before_selection(monkeypatch, mode, probl
     monkeypatch.setattr("langchain_openai.ChatOpenAI",
                         lambda **kwargs: pytest.fail("invalid catalogs must not request a summary"))
     response = TestClient(app).post("/runs", json={
-        "mode": mode, "product_ids": [valid["product_id"]], "use_llm_summary": True,
+        "mode": mode, "product_ids": [valid["product_id"]] if mode == "shortlist" else [],
+        "use_llm_summary": True,
     })
     assert response.status_code == 422
     assert "detail" in response.json()
@@ -131,7 +147,8 @@ def test_duplicate_catalog_ids_cannot_produce_results_or_model_summaries(monkeyp
     monkeypatch.setattr("langchain_openai.ChatOpenAI",
                         lambda **kwargs: pytest.fail("duplicate IDs must not request a summary"))
     response = TestClient(app).post("/runs", json={
-        "mode": mode, "product_ids": [item["product_id"]], "limit": 1,
+        "mode": mode, "product_ids": [item["product_id"]] if mode == "shortlist" else [],
+        "limit": 1,
         "use_llm_summary": True,
     })
     assert response.status_code == 422
@@ -239,7 +256,8 @@ def test_tied_scores_use_product_ids_before_applying_limit(monkeypatch, mode):
             "gross_margin": 0.6, "market_saturation": 0, "rating": 5, "evidence_count": 15}
     catalog = [{**base, "product_id": key, "name": key} for key in ["c", "a", "b"]]
     client = TestClient(app)
-    payload = {"mode": mode, "limit": 2, "product_ids": ["c", "b", "a"]}
+    payload = {"mode": mode, "limit": 2,
+               "product_ids": ["c", "b", "a"] if mode == "shortlist" else []}
     for order in [catalog, list(reversed(catalog))]:
         monkeypatch.setattr(graph_module, "_catalog", lambda order=order: order)
         response = client.post("/runs", json=payload)
