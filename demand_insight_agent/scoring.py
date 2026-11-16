@@ -15,8 +15,10 @@ def assess(product: Product) -> ProductAssessment:
     score = round(sum(signals.values()), 1)
     reasons = [
         f"Demand signal contributes {signals['demand']:.1f}/30 points.",
+        f"Advertiser validation contributes {signals['advertiser_validation']:.1f}/20 points.",
         f"Gross margin contributes {signals['margin']:.1f}/25 points.",
         f"Market headroom contributes {signals['market_headroom']:.1f}/15 points.",
+        f"Customer rating contributes {signals['customer_rating']:.1f}/10 points.",
     ]
 
     if product.gross_margin < 0.15:

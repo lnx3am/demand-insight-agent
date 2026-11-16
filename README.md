@@ -18,6 +18,8 @@ POST /runs
 
 The 100-point score combines demand (30), advertiser validation (20), gross margin (25), market headroom (15), and customer rating (10). Products below a 15% gross margin are rejected. The response includes each component, evidence-based confidence, and human-readable reasons. These example weights are not validated business advice.
 
+Human-readable reasons report the points contributed by all five components, including advertiser validation after its eight-advertiser cap and customer rating. Products rejected by the margin gate also include the rejection reason.
+
 Catalog advertiser and evidence counts require nonnegative integers. Booleans, strings, and floats are rejected rather than coerced into scoring or confidence inputs.
 Catalog product IDs must contain non-whitespace text, just like shortlist request IDs. Invalid catalog IDs are rejected before assessments or model summaries are produced.
 Catalog names and categories must also contain non-whitespace text, so results and summaries cannot contain blank product labels.
