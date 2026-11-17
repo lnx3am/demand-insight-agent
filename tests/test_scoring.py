@@ -62,6 +62,12 @@ def test_component_weights_and_caps_keep_maximum_score_at_one_hundred(advertiser
     assert result.verdict == "winner"
 
 
+def test_very_large_advertiser_count_saturates_without_overflow():
+    ordinary = assess(product(advertiser_count=8))
+    enormous = assess(product(advertiser_count=10**400))
+    assert enormous == ordinary
+
+
 @pytest.mark.parametrize("evidence,confidence", [(0, "low"), (6, "low"), (7, "medium"),
                                              (14, "medium"), (15, "high")])
 def test_evidence_confidence_boundaries_do_not_change_scores(evidence, confidence):
