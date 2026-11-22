@@ -6,6 +6,18 @@ from demand_insight_agent.api import app
 from demand_insight_agent.models import RunRequest
 
 
+@pytest.mark.parametrize("field,value", [("mod", "shortlist"), ("product_id", "sample-001"),
+                                       ("use_llm_summmary", True)])
+def test_unknown_request_fields_are_rejected_before_graph_execution(monkeypatch, field, value):
+    with pytest.raises(ValidationError):
+        RunRequest.model_validate({field: value})
+    monkeypatch.setattr("demand_insight_agent.api.run",
+                        lambda request: pytest.fail("unknown fields must not execute the graph"))
+    response = TestClient(app).post("/runs", json={field: value})
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
 @pytest.mark.parametrize("limit", [True, False, "5", 5.0, 5.5])
 def test_limit_requires_integer_before_graph_execution(monkeypatch, limit):
     with pytest.raises(ValidationError):
