@@ -55,3 +55,39 @@ def test_model_summary_rejects_responses_without_summary_text(monkeypatch, conte
     monkeypatch.setattr("langchain_openai.ChatOpenAI", Mock(return_value=model))
     with pytest.raises(ValueError, match="no summary text"):
         model_summary({"assessments": []})
+
+
+@pytest.mark.parametrize("failure", ["connection", "timeout", "rate_limit", "server"])
+def test_temporary_summary_failure_returns_retryable_response(monkeypatch, failure):
+    from unittest.mock import Mock
+
+    import httpx
+    from fastapi.testclient import TestClient
+    from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+
+    from demand_insight_agent.api import app
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    request = httpx.Request("POST", "https://provider.example.test/responses")
+    if failure == "connection":
+        error = APIConnectionError(request=request)
+    elif failure == "timeout":
+        error = APITimeoutError(request=request)
+    else:
+        status, error_type = (429, RateLimitError) if failure == "rate_limit" else (
+            503, InternalServerError)
+        error = error_type("private provider detail", body=None,
+                           response=httpx.Response(status, request=request))
+    model = Mock()
+    model.invoke.side_effect = error
+    monkeypatch.setattr("langchain_openai.ChatOpenAI", Mock(return_value=model))
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post("/runs", json={"use_llm_summary": True})
+    assert response.status_code == 503
+    assert response.json() == {"detail": "model summary temporarily unavailable"}
+    assert response.headers["retry-after"] == "1"
+    model.invoke.assert_called_once()
+    # A provider outage must not prevent local scoring and template summaries.
+    assert client.post("/runs", json={}).status_code == 200
+    model.invoke.assert_called_once()
