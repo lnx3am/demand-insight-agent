@@ -61,6 +61,8 @@ An empty, whitespace-only, or reasoning-only model response returns HTTP 422 wit
 - Equal scores are ordered by product ID before applying the result limit, so catalog order does not change tied selections.
 - Deterministic summaries include each leading product's score and verdict, so a high score cannot hide rejection by the gross-margin gate.
 
+Catalog product IDs, names, and categories must contain non-whitespace text. Blank labels return HTTP 422 before assessments or model summaries are produced.
+
 ## Design choices and next steps
 
 - Scoring is deterministic and inspectable; an LLM cannot silently alter numeric scores.
