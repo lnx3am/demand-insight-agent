@@ -62,6 +62,7 @@ An empty, whitespace-only, or reasoning-only model response returns HTTP 422 wit
 - Deterministic summaries include each leading product's score and verdict, so a high score cannot hide rejection by the gross-margin gate.
 
 Catalog product IDs, names, and categories must contain non-whitespace text. Blank labels return HTTP 422 before assessments or model summaries are produced.
+Selected catalog records must have unique product IDs. Duplicates return HTTP 422 before scoring or requesting a model summary.
 
 ## Design choices and next steps
 

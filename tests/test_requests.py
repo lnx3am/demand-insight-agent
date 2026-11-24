@@ -163,3 +163,23 @@ def test_blank_catalog_labels_prevent_scoring_and_model_calls(monkeypatch, field
     assert response.status_code == 422
     assert field in response.json()["detail"]
     assert "assessments" not in response.json()
+
+
+@pytest.mark.parametrize("mode", ["discover", "shortlist"])
+def test_duplicate_catalog_ids_prevent_scoring_and_model_calls(monkeypatch, mode):
+    import importlib
+
+    graph_module = importlib.import_module("demand_insight_agent.graph")
+    item = {"product_id": "sample-001", "name": "Example", "category": "demo",
+            "demand_signal": 1, "advertiser_count": 8, "gross_margin": 0.6,
+            "market_saturation": 0, "rating": 5, "evidence_count": 15}
+    monkeypatch.setattr(graph_module, "_catalog", lambda: [item, {**item, "name": "Other"}])
+    monkeypatch.setattr(graph_module, "assess",
+                        lambda product: pytest.fail("ambiguous products must not be scored"))
+    monkeypatch.setattr("langchain_openai.ChatOpenAI",
+                        lambda **kwargs: pytest.fail("ambiguous products must not request a summary"))
+    response = TestClient(app).post("/runs", json={
+        "mode": mode, "product_ids": ["sample-001"], "use_llm_summary": True,
+    })
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Catalog product IDs must be unique."}
