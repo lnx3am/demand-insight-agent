@@ -75,3 +75,12 @@ def test_evidence_confidence_boundaries_do_not_change_scores(evidence, confidenc
     assert result.confidence == confidence
     assert result.score == 25
     assert result.verdict == "reject"
+
+
+@pytest.mark.parametrize("advertisers,margin", [(4, 0.6), (80, 0.1)])
+def test_reasons_explain_every_scoring_component_and_preserve_margin_gate(advertisers, margin):
+    result = assess(product(advertiser_count=advertisers, gross_margin=margin, rating=4))
+    assert f"Advertiser validation contributes {min(advertisers, 8) / 8 * 20:.1f}/20 points." in result.reasons
+    assert "Customer rating contributes 8.0/10 points." in result.reasons
+    assert len(result.reasons) == (6 if margin < 0.15 else 5)
+    assert any("gross-margin gate" in reason for reason in result.reasons) == (margin < 0.15)
