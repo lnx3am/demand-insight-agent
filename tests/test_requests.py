@@ -61,6 +61,20 @@ def test_empty_shortlist_is_rejected_by_shared_request_model():
     assert "at least one product_id" in response.json()["detail"][0]["msg"]
 
 
+@pytest.mark.parametrize("mode", [None, "discover"])
+def test_discovery_cannot_silently_ignore_product_ids(monkeypatch, mode):
+    payload = {"product_ids": ["sample-001"], "use_llm_summary": True}
+    if mode is not None:
+        payload["mode"] = mode
+    with pytest.raises(ValidationError, match="product_ids require shortlist mode"):
+        RunRequest.model_validate(payload)
+    monkeypatch.setattr("demand_insight_agent.api.run",
+                        lambda request: pytest.fail("mixed modes must not execute the graph"))
+    response = TestClient(app).post("/runs", json=payload)
+    assert response.status_code == 422
+    assert "product_ids require shortlist mode" in response.json()["detail"][0]["msg"]
+
+
 def test_discovery_and_valid_shortlist_still_run():
     client = TestClient(app)
     discovery = client.post("/runs", json={"mode": "discover", "limit": 1})
@@ -103,7 +117,9 @@ def test_tied_scores_use_product_ids_before_applying_limit(monkeypatch, mode):
             "gross_margin": 0.6, "market_saturation": 0, "rating": 5, "evidence_count": 15}
     catalog = [{**base, "product_id": key, "name": key} for key in ["c", "a", "b"]]
     client = TestClient(app)
-    payload = {"mode": mode, "limit": 2, "product_ids": ["c", "b", "a"]}
+    payload = {"mode": mode, "limit": 2}
+    if mode == "shortlist":
+        payload["product_ids"] = ["c", "b", "a"]
     for order in [catalog, list(reversed(catalog))]:
         monkeypatch.setattr(graph_module, "_catalog", lambda order=order: order)
         response = client.post("/runs", json=payload)
@@ -178,8 +194,9 @@ def test_duplicate_catalog_ids_prevent_scoring_and_model_calls(monkeypatch, mode
                         lambda product: pytest.fail("ambiguous products must not be scored"))
     monkeypatch.setattr("langchain_openai.ChatOpenAI",
                         lambda **kwargs: pytest.fail("ambiguous products must not request a summary"))
-    response = TestClient(app).post("/runs", json={
-        "mode": mode, "product_ids": ["sample-001"], "use_llm_summary": True,
-    })
+    payload = {"mode": mode, "use_llm_summary": True}
+    if mode == "shortlist":
+        payload["product_ids"] = ["sample-001"]
+    response = TestClient(app).post("/runs", json=payload)
     assert response.status_code == 422
     assert response.json() == {"detail": "Catalog product IDs must be unique."}
