@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from openai import APIConnectionError, InternalServerError, RateLimitError
+from openai import APIConnectionError, APIStatusError, InternalServerError, RateLimitError
 
 from .graph import run
 from .models import RunRequest, RunResponse
@@ -19,5 +19,7 @@ def create_run(request: RunRequest) -> RunResponse:
     except (APIConnectionError, InternalServerError, RateLimitError) as exc:
         raise HTTPException(status_code=503, detail="model summary temporarily unavailable",
                             headers={"Retry-After": "1"}) from exc
+    except APIStatusError as exc:
+        raise HTTPException(status_code=502, detail="model summary provider request failed") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

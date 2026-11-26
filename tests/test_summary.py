@@ -91,3 +91,39 @@ def test_temporary_summary_failure_returns_retryable_response(monkeypatch, failu
     # A provider outage must not prevent local scoring and template summaries.
     assert client.post("/runs", json={}).status_code == 200
     model.invoke.assert_called_once()
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 422])
+def test_permanent_summary_provider_failure_returns_sanitized_bad_gateway(monkeypatch, status):
+    from unittest.mock import Mock
+
+    import httpx
+    from fastapi.testclient import TestClient
+    from openai import (
+        AuthenticationError,
+        BadRequestError,
+        NotFoundError,
+        PermissionDeniedError,
+        UnprocessableEntityError,
+    )
+
+    from demand_insight_agent.api import app
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    error_type = {400: BadRequestError, 401: AuthenticationError, 403: PermissionDeniedError,
+                  404: NotFoundError, 422: UnprocessableEntityError}[status]
+    error = error_type("private provider detail", body={"secret": "private"},
+                       response=httpx.Response(status, request=httpx.Request(
+                           "POST", "https://provider.example.test/responses")))
+    model = Mock()
+    model.invoke.side_effect = error
+    monkeypatch.setattr("langchain_openai.ChatOpenAI", Mock(return_value=model))
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post("/runs", json={"use_llm_summary": True})
+    assert response.status_code == 502
+    assert response.json() == {"detail": "model summary provider request failed"}
+    assert "retry-after" not in response.headers
+    model.invoke.assert_called_once()
+    assert client.post("/runs", json={}).status_code == 200
+    model.invoke.assert_called_once()
