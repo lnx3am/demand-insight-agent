@@ -5,6 +5,31 @@ from demand_insight_agent.models import Product
 from demand_insight_agent.scoring import assess
 
 
+@pytest.mark.parametrize("use_llm_summary", [False, True])
+@pytest.mark.parametrize("configured", [False, True])
+def test_empty_catalog_returns_template_summary_without_provider_calls(
+    monkeypatch, use_llm_summary, configured,
+):
+    from importlib import import_module
+
+    from fastapi.testclient import TestClient
+
+    from demand_insight_agent.api import app
+
+    monkeypatch.setattr(import_module("demand_insight_agent.graph"), "_catalog", list)
+    for variable in ("OPENAI_API_KEY", "OPENAI_MODEL"):
+        if configured:
+            monkeypatch.setenv(variable, "test-only")
+        else:
+            monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr("langchain_openai.ChatOpenAI",
+                        lambda **kwargs: pytest.fail("empty results must not call the provider"))
+    response = TestClient(app).post("/runs", json={"use_llm_summary": use_llm_summary})
+    assert response.status_code == 200
+    assert response.json()["assessments"] == []
+    assert response.json()["summary"] == "No products matched this run."
+
+
 def test_summary_labels_high_scoring_product_rejected_by_margin_gate():
     result = assess(Product(
         product_id="low-margin", name="Low margin product", category="demo",

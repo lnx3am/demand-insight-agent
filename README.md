@@ -47,6 +47,7 @@ curl -X POST http://127.0.0.1:8000/runs \
 ```
 
 Set `OPENAI_API_KEY` and `OPENAI_MODEL` and pass `"use_llm_summary": true` to request a model-written summary. Without that option, all functionality is local and does not make model calls.
+Runs with no assessments return `No products matched this run.` locally, even when a model summary is requested; they require no provider configuration or call.
 Each model-summary request has a 20-second timeout per attempt; provider retries can extend the total run time.
 Temporary provider connection, timeout, rate-limit, and server failures return HTTP 503 with `Retry-After: 1`; local scoring and template summaries remain available.
 Other provider HTTP failures (such as invalid provider credentials or an unavailable model) return HTTP 502 with a generic message that excludes provider details. They do not advertise an automatic retry; local scoring remains available.
