@@ -152,3 +152,29 @@ def test_permanent_summary_provider_failure_returns_sanitized_bad_gateway(monkey
     model.invoke.assert_called_once()
     assert client.post("/runs", json={}).status_code == 200
     model.invoke.assert_called_once()
+
+
+@pytest.mark.parametrize("content", ["", " \t\n", [{"type": "reasoning", "reasoning": "private"}]])
+def test_missing_model_summary_returns_bad_gateway_and_local_runs_still_work(monkeypatch, content):
+    from unittest.mock import Mock
+
+    from fastapi.testclient import TestClient
+    from langchain_core.messages import AIMessage
+
+    from demand_insight_agent.api import app
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    model = Mock()
+    model.invoke.return_value = AIMessage(content=content)
+    monkeypatch.setattr("langchain_openai.ChatOpenAI", Mock(return_value=model))
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post("/runs", json={"use_llm_summary": True})
+    assert response.status_code == 502
+    assert response.json() == {"detail": "model returned no summary text"}
+    assert "retry-after" not in response.headers
+    model.invoke.assert_called_once()
+    assert client.post("/runs", json={}).status_code == 200
+    model.invoke.assert_called_once()
+    # Caller errors must retain their existing status.
+    assert client.post("/runs", json={"mode": "shortlist", "product_ids": ["unknown"]}).status_code == 422

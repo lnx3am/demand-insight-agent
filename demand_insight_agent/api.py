@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from openai import APIConnectionError, APIStatusError, InternalServerError, RateLimitError
 
-from .graph import run
+from .graph import InvalidSummaryError, run
 from .models import RunRequest, RunResponse
 
 app = FastAPI(title="Demand Insight Agent", version="0.1.0")
@@ -16,6 +16,8 @@ def health() -> dict[str, str]:
 def create_run(request: RunRequest) -> RunResponse:
     try:
         return RunResponse.model_validate(run(request))
+    except InvalidSummaryError as exc:
+        raise HTTPException(status_code=502, detail="model returned no summary text") from exc
     except (APIConnectionError, InternalServerError, RateLimitError) as exc:
         raise HTTPException(status_code=503, detail="model summary temporarily unavailable",
                             headers={"Retry-After": "1"}) from exc

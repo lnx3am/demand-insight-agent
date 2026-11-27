@@ -10,6 +10,10 @@ from .models import Product, ProductAssessment, RunRequest
 from .scoring import SCORING_VERSION, assess
 
 
+class InvalidSummaryError(ValueError):
+    """The model returned no usable summary for a valid run."""
+
+
 class RunState(TypedDict):
     request: dict
     run_id: str
@@ -70,7 +74,7 @@ def model_summary(state: RunState) -> dict:
     response = model.invoke(prompt.format(results=json.dumps(state["assessments"], ensure_ascii=False)))
     summary = str(response.text)
     if not summary.strip():
-        raise ValueError("Model returned no summary text.")
+        raise InvalidSummaryError("Model returned no summary text.")
     return {"summary": summary}
 
 

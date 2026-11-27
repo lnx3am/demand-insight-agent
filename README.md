@@ -52,7 +52,7 @@ Each model-summary request has a 20-second timeout per attempt; provider retries
 Temporary provider connection, timeout, rate-limit, and server failures return HTTP 503 with `Retry-After: 1`; local scoring and template summaries remain available.
 Other provider HTTP failures (such as invalid provider credentials or an unavailable model) return HTTP 502 with a generic message that excludes provider details. They do not advertise an automatic retry; local scoring remains available.
 `use_llm_summary` requires a JSON boolean; strings and numbers return HTTP 422 before the graph runs.
-An empty, whitespace-only, or reasoning-only model response returns HTTP 422 with `Model returned no summary text.` instead of a successful run with a blank summary.
+An empty, whitespace-only, or reasoning-only model response returns HTTP 502 with `model returned no summary text`; the failure is attributed to the provider rather than the valid request. Local scoring and template summaries remain available.
 
 ## API
 
