@@ -82,13 +82,20 @@ def test_model_summary_rejects_responses_without_summary_text(monkeypatch, conte
         model_summary({"assessments": []})
 
 
-@pytest.mark.parametrize("failure", ["connection", "timeout", "rate_limit", "server"])
+@pytest.mark.parametrize("failure", ["connection", "timeout", "http_timeout", "conflict",
+                                     "rate_limit", "server"])
 def test_temporary_summary_failure_returns_retryable_response(monkeypatch, failure):
     from unittest.mock import Mock
 
     import httpx
     from fastapi.testclient import TestClient
-    from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+    from openai import (
+        APIConnectionError,
+        APIStatusError,
+        APITimeoutError,
+        InternalServerError,
+        RateLimitError,
+    )
 
     from demand_insight_agent.api import app
 
@@ -100,8 +107,10 @@ def test_temporary_summary_failure_returns_retryable_response(monkeypatch, failu
     elif failure == "timeout":
         error = APITimeoutError(request=request)
     else:
-        status, error_type = (429, RateLimitError) if failure == "rate_limit" else (
-            503, InternalServerError)
+        status, error_type = {"http_timeout": (408, APIStatusError),
+                              "conflict": (409, APIStatusError),
+                              "rate_limit": (429, RateLimitError),
+                              "server": (503, InternalServerError)}[failure]
         error = error_type("private provider detail", body=None,
                            response=httpx.Response(status, request=request))
     model = Mock()
